@@ -1,0 +1,48 @@
+# Build outputs
+bin/
+obj/
+out/
+publish/
+*.user
+*.suo
+*.swp
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.sln.docstates
+
+# Test results / coverage
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+*.trx
+
+# .NET tooling
+.dotnet/
+*.nupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Bitwyck runtime data (engram db, identity, logs, scratch)
+data/
+logs/
+*.db
+*.db-shm
+*.db-wal
+identity.json
+synth_*.cs
+
+# OS noise
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Local config overrides
+appsettings.Local.json
+appsettings.Development.json
+.env
+.env.local

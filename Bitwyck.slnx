@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Bitwyck.Core/Bitwyck.Core.csproj" />
+    <Project Path="src/Bitwyck.Runtime/Bitwyck.Runtime.csproj" />
+    <Project Path="src/Bitwyck.CLI/Bitwyck.CLI.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Bitwyck.Tests/Bitwyck.Tests.csproj" />
+  </Folder>
+</Solution>
