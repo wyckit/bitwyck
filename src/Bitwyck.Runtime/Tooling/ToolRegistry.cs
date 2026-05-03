@@ -28,16 +28,12 @@ public sealed class ToolRegistry : IToolRegistry
     public IReadOnlyCollection<ITool> All() => _tools.Values.ToList().AsReadOnly();
 
     /// <summary>
-    /// Compact one-line-per-tool manifest. The LLM sees `name|schema — description`
-    /// for each tool. Compact form keeps the system prompt small enough for
-    /// small-context BitNet kernels.
+    /// Single-line manifest (just `name|schema` per tool) so the system prompt
+    /// stays under the small-context BitNet kernel threshold.
     /// </summary>
     public string ToPromptManifest()
     {
         if (_tools.IsEmpty) return "(no tools)";
-        var sb = new StringBuilder();
-        foreach (var tool in _tools.Values.OrderBy(t => t.Name))
-            sb.Append(tool.Name).Append('|').Append(tool.ArgumentSchema).Append(" - ").AppendLine(tool.Description);
-        return sb.ToString().TrimEnd();
+        return string.Join(", ", _tools.Values.OrderBy(t => t.Name).Select(t => $"{t.Name}|{t.ArgumentSchema}"));
     }
 }

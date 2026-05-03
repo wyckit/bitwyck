@@ -53,8 +53,9 @@ public sealed class PromptCompiler
             var manifest = _registry.ToPromptManifest();
             if (!string.IsNullOrWhiteSpace(manifest) && manifest != "(no tools)")
             {
-                // ASCII-only call markers avoid colliding with ChatML special tokens.
-                sb.Append("\nTools (invoke as [[call]]name|args[[/call]]): ").Append(manifest);
+                // <call>...</call> tags don't collide with ChatML's <|tag|> tokens
+                // since the interceptor parses literal <call>...</call>.
+                sb.Append("\nTools (invoke as <call>name|args</call>): ").Append(manifest);
             }
         }
         return sb.ToString();
