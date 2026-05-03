@@ -181,6 +181,11 @@ public static class Program
         services.AddSingleton<ParallelCognitiveDispatcher>(sp =>
             new ParallelCognitiveDispatcher(sp.GetRequiredService<IBitNetInferenceClient>()));
 
+        services.AddSingleton<IntentDispatcher>(sp => new IntentDispatcher(
+            sp.GetRequiredService<IToolRegistry>(),
+            sp.GetRequiredService<IEngramMemoryStore>(),
+            sp.GetRequiredService<ILogger<IntentDispatcher>>()));
+
         services.AddSingleton<CognitiveLoop>(sp =>
         {
             var inference = sp.GetRequiredService<IBitNetInferenceClient>();
@@ -201,6 +206,27 @@ public static class Program
                     stream,
                     new XmlToolInterceptor.ToolHandler((c, t) => handler(c, t)),
                     ct);
+
+                // Post-LLM salvage: if the canonical interceptor caught nothing,
+                // try the multi-format extractor (JSON, brackets, function-call,
+                // fuzzy tool name match) on the assembled output.
+                if (result.ToolCalls.Count == 0)
+                {
+                    var salvaged = ToolCallExtractor.Extract(result.AssembledOutput, tools);
+                    if (salvaged.Count > 0)
+                    {
+                        var extraResults = new List<ToolResult>();
+                        var assembled = result.AssembledOutput;
+                        foreach (var call in salvaged)
+                        {
+                            var tr = await handler(call, ct);
+                            extraResults.Add(tr);
+                            assembled += "\n" + tr.ToObservation();
+                        }
+                        return new InterceptionOutcome(assembled, salvaged, extraResults);
+                    }
+                }
+
                 return new InterceptionOutcome(result.AssembledOutput, result.ToolCalls, result.ToolResults);
             };
             CognitiveLoop.CommitFn commit = (cycle, ct) => commitSvc.CommitAsync(cycle, ct);

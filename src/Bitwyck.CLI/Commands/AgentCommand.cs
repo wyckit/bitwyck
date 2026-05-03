@@ -1,3 +1,4 @@
+using Bitwyck.Core.Interfaces;
 using Bitwyck.Core.Models;
 using Bitwyck.Runtime.Cognition;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,6 +40,8 @@ public sealed class AgentCommand
         }
 
         var loop = _services.GetRequiredService<CognitiveLoop>();
+        var dispatcher = _services.GetRequiredService<IntentDispatcher>();
+        var registry = _services.GetRequiredService<IToolRegistry>();
 
         Console.WriteLine();
         WriteColored(ConsoleColor.Cyan, "▶ goal:  ");
@@ -47,10 +50,41 @@ public sealed class AgentCommand
 
         var transcript = new System.Text.StringBuilder();
         transcript.AppendLine($"Goal: {goal}");
+        var lastTrigger = goal;
 
         for (var iter = 1; iter <= maxIterations; iter++)
         {
             WriteColored(ConsoleColor.DarkGray, $"── iteration {iter}/{maxIterations} ──\n");
+
+            // Pre-LLM shortcut: deterministic intent dispatch. Avoids the LLM
+            // entirely when the trigger maps cleanly to a tool.
+            var dispatch = await dispatcher.TryDispatchAsync(lastTrigger, ct);
+            if (dispatch.IsHit && dispatch.Call is { } directCall && registry.TryGet(directCall.ToolName, out var directTool) && directTool is not null)
+            {
+                WriteColored(ConsoleColor.Magenta, $"⚡ shortcut [{dispatch.Source}, conf={dispatch.Confidence:F2}]: ");
+                Console.WriteLine($"{directCall.ToolName}({string.Join(", ", directCall.Arguments)})");
+                ToolResult tr;
+                try { tr = await directTool.ExecuteAsync(directCall.Arguments, ct); }
+                catch (Exception ex) { tr = ToolResult.Fail(directCall.ToolName, ex.Message); }
+
+                Console.WriteLine(tr.Success ? tr.Output : $"[FAIL] {tr.Error}");
+                Console.WriteLine();
+
+                if (tr.Success)
+                {
+                    await dispatcher.RecordSuccessAsync(lastTrigger, directCall, ct);
+                    WriteColored(ConsoleColor.Green, "✔ agent finished (shortcut handled the goal).\n");
+                    return 0;
+                }
+
+                // Shortcut failed (e.g. allow-list rejection, missing file) —
+                // fall through to the LLM with the failure observation in context.
+                WriteColored(ConsoleColor.Yellow, "⚠ shortcut failed — escalating to LLM.\n");
+                transcript.AppendLine();
+                transcript.AppendLine($"--- shortcut failed turn {iter} ---");
+                transcript.AppendLine(tr.ToObservation());
+                lastTrigger = $"the shortcut failed: {tr.Error}. Continue toward the goal: {goal}";
+            }
 
             // Feed forward: each iteration's prompt is the goal plus all prior tool observations.
             var ev = SensoryEvent.FromText(transcript.ToString(), source: $"agent:iter{iter}");

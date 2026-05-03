@@ -6,8 +6,8 @@ namespace Bitwyck.Tests.Tooling;
 
 public class ToolRegistryTests
 {
-    private static ITool MakeTool(string name, string description = "a tool") =>
-        new StubTool(name, description);
+    private static ITool MakeTool(string name, string description = "a tool", string schema = "args") =>
+        new StubTool(name, description, schema);
 
     // ── Register + TryGet ─────────────────────────────────────────────────────
 
@@ -62,18 +62,17 @@ public class ToolRegistryTests
     // ── ToPromptManifest ──────────────────────────────────────────────────────
 
     [Fact]
-    public void ToPromptManifest_ContainsEachToolNameAndDescription()
+    public void ToPromptManifest_ContainsEachToolNameAndSchema()
     {
         var registry = new ToolRegistry();
-        registry.Register(MakeTool("read_file", "Reads a file from disk."));
-        registry.Register(MakeTool("write_file", "Writes content to a file."));
+        registry.Register(MakeTool("read_file", "Reads a file from disk.", schema: "path"));
+        registry.Register(MakeTool("write_file", "Writes content to a file.", schema: "path|content"));
 
         var manifest = registry.ToPromptManifest();
 
-        Assert.Contains("read_file", manifest);
-        Assert.Contains("write_file", manifest);
-        Assert.Contains("Reads a file from disk.", manifest);
-        Assert.Contains("Writes content to a file.", manifest);
+        // Compact format: "name|schema" per tool, comma-separated.
+        Assert.Contains("read_file|path", manifest);
+        Assert.Contains("write_file|path|content", manifest);
     }
 
     [Fact]
@@ -110,15 +109,16 @@ public class ToolRegistryTests
 
     private sealed class StubTool : ITool
     {
-        public StubTool(string name, string description)
+        public StubTool(string name, string description, string schema = "")
         {
             Name = name;
             Description = description;
+            ArgumentSchema = schema;
         }
 
         public string Name { get; }
         public string Description { get; }
-        public string ArgumentSchema => string.Empty;
+        public string ArgumentSchema { get; }
 
         public Task<ToolResult> ExecuteAsync(IReadOnlyList<string> arguments, CancellationToken ct = default)
             => Task.FromResult(ToolResult.Ok(Name, "stub"));
