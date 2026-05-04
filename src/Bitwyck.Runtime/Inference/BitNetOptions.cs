@@ -19,7 +19,7 @@ public sealed record BitNetOptions
     public Dictionary<ModelTier, BitNetTierConfig> Tiers { get; init; } = DefaultTiers();
 
     public int DefaultThreads { get; init; } = 4;
-    public int DefaultContextSize { get; init; } = 4096;
+    public int DefaultContextSize { get; init; } = 8192;
     public string ServerHost { get; init; } = "127.0.0.1";
 
     /// <summary>
@@ -28,10 +28,24 @@ public sealed record BitNetOptions
     /// 1.58-bit kernels stack-overflow above ~870 chars. After bumping llama-cli's
     /// stack reserve to 8 MB (via <c>editbin /STACK:8388608</c>) the practical
     /// ceiling is ~30 000 chars (limited by the model's 8192-token context, not
-    /// by stack pressure). 8000 leaves headroom inside a 4096-token context.
+    /// by stack pressure). 24000 fits inside the model's natural 8192-token context.
     /// Set to 0 to disable the guard.
     /// </summary>
-    public int MaxPromptChars { get; init; } = 8000;
+    public int MaxPromptChars { get; init; } = 24000;
+
+    /// <summary>
+    /// RoPE scaling type passed to llama-cli ("none", "linear", "yarn"). Use "linear"
+    /// in combination with <see cref="RopeFreqScale"/> &lt; 1 to extend the model
+    /// past its trained context window — at the cost of some output quality.
+    /// </summary>
+    public string RopeScalingType { get; init; } = "none";
+
+    /// <summary>
+    /// RoPE frequency scale. 1.0 = native context (default). 0.5 = 2× extended
+    /// (e.g. 8192 → 16384 with linear scaling). Lower = more extension, more
+    /// quality loss.
+    /// </summary>
+    public double RopeFreqScale { get; init; } = 1.0;
 
     /// <summary>How long to wait for llama-server.exe to become ready after launch.</summary>
     public TimeSpan ServerStartupTimeout { get; init; } = TimeSpan.FromSeconds(60);

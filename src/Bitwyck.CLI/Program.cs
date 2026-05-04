@@ -99,6 +99,8 @@ public static class Program
                     DefaultThreads = int.TryParse(section["DefaultThreads"], out var t) ? t : opts.DefaultThreads,
                     DefaultContextSize = int.TryParse(section["DefaultContextSize"], out var cs) ? cs : opts.DefaultContextSize,
                     MaxPromptChars = int.TryParse(section["MaxPromptChars"], out var mp) ? mp : opts.MaxPromptChars,
+                    RopeScalingType = section["RopeScalingType"] ?? opts.RopeScalingType,
+                    RopeFreqScale = double.TryParse(section["RopeFreqScale"], out var rs) ? rs : opts.RopeFreqScale,
                 };
             }
             return opts;
@@ -174,6 +176,8 @@ public static class Program
             reg.Register(new StoreEngramTool(sp.GetRequiredService<IEngramMemoryStore>()));
             reg.Register(new SpawnAgentTool(sp.GetRequiredService<ParallelCognitiveDispatcher>()));
             reg.Register(new FetchUrlTool(sp.GetRequiredService<IHttpClientFactory>()));
+            reg.Register(new SummarizeTool(sp.GetRequiredService<IBitNetInferenceClient>(), sp.GetRequiredService<BitNetOptions>()));
+            reg.Register(new MapReduceTool(sp.GetRequiredService<IBitNetInferenceClient>(), sp.GetRequiredService<BitNetOptions>()));
             // ScheduleTaskTool is registered after the loop is constructed (circular dep) — handled in Daemon.
             return reg;
         });

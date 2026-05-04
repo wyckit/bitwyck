@@ -119,10 +119,17 @@ public sealed class IntentDispatcher
         ("recall",      new Regex(@"\b(?:recall|remember|what\s+do\s+(?:we|I)\s+know\s+about)\s+(.+)$", RegexOptions.IgnoreCase), "query_engram", new[]{1}),
         ("query-mem",   new Regex(@"\b(?:query|search)\s+(?:engram|memory)\s+(?:for\s+)?(.+)$", RegexOptions.IgnoreCase), "query_engram", new[]{1}),
 
-        // fetch_url — phrasing variants for asking the agent to read a web page
-        ("read-link",   new Regex(@"\b(?:read|open|load|fetch|summari[sz]e|browse)\s+(?:this\s+|the\s+)?(?:link|url|page|article|webpage)?\s*[:\s-]*\s*(https?://\S+)", RegexOptions.IgnoreCase), "fetch_url", new[]{1}),
+        // fetch_url — phrasing variants for asking the agent to read a web page.
+        // Note: "summarize <url>" intentionally does NOT match here; the user
+        // wants a summary, not the raw page text. Summarize patterns route to
+        // summarize tool (which can take a URL via @-prefix... or chain via agent).
+        ("read-link",   new Regex(@"\b(?:read|open|load|fetch|browse)\s+(?:this\s+|the\s+)?(?:link|url|page|article|webpage)?\s*[:\s-]*\s*(https?://\S+)", RegexOptions.IgnoreCase), "fetch_url", new[]{1}),
         ("whats-at-url",new Regex(@"\bwhat(?:'s|\s+is|\s+does)\s+(?:in\s+|at\s+|on\s+)?(https?://\S+)", RegexOptions.IgnoreCase), "fetch_url", new[]{1}),
         ("url-only",    new Regex(@"^\s*(https?://\S+)\s*$", RegexOptions.IgnoreCase), "fetch_url", new[]{1}),
+
+        // summarize — file path or inline text
+        ("summarize-file", new Regex(@"\bsummari[sz]e\s+(?:the\s+)?file\s+(\S+)", RegexOptions.IgnoreCase), "summarize", new[]{1}),
+        ("summarize-at",   new Regex(@"\bsummari[sz]e\s+(@\S+)", RegexOptions.IgnoreCase), "summarize", new[]{1}),
     };
 
     public static ToolCall? MatchPattern(string trigger)

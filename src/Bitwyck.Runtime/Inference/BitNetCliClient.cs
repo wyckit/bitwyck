@@ -154,6 +154,13 @@ public sealed class BitNetCliClient : IBitNetInferenceClient
         psi.ArgumentList.Add("-s"); psi.ArgumentList.Add(seed.ToString(ci));
         psi.ArgumentList.Add("--no-warmup");
 
+        // Optional RoPE scaling (extends context past n_ctx_train at quality cost).
+        if (!string.Equals(_options.RopeScalingType, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            psi.ArgumentList.Add("--rope-scaling"); psi.ArgumentList.Add(_options.RopeScalingType);
+            psi.ArgumentList.Add("--rope-freq-scale"); psi.ArgumentList.Add(_options.RopeFreqScale.ToString("F4", ci));
+        }
+
         if (request.StopSequences is { Count: > 0 })
         {
             foreach (var stop in request.StopSequences)
