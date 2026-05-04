@@ -44,6 +44,7 @@ public static class Program
                 "ask" => await new AskCommand(host.Services).RunAsync(rest, ct),
                 "repl" => await new ReplCommand(host.Services).RunAsync(rest, ct),
                 "agent" => await new AgentCommand(host.Services).RunAsync(rest, ct),
+                "chat" => await new ChatCommand(host.Services).RunAsync(rest, ct),
                 "diagnose" => await new DiagnoseCommand(host.Services).RunAsync(rest, ct),
                 _ => UnknownVerb(verb),
             };
@@ -266,7 +267,8 @@ public static class Program
         Console.WriteLine();
         Console.WriteLine("COMMANDS:");
         Console.WriteLine("  ask <prompt>          Run one cognitive turn and print the answer.");
-        Console.WriteLine("  repl                  Interactive multi-turn shell.");
+        Console.WriteLine("  repl                  Interactive raw LLM shell (no shortcuts).");
+        Console.WriteLine("  chat                  Multi-turn chat with the full agent stack (shortcuts + engram).");
         Console.WriteLine("  agent [--max N] <goal>  Iterative reason->tool->observe agent loop.");
         Console.WriteLine("  daemon                Start chrono-scheduler + sensors as a long-running process.");
         Console.WriteLine("  diagnose              Health-check every subsystem.");
