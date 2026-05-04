@@ -98,6 +98,7 @@ public static class Program
                     ServerHost = section["ServerHost"] ?? opts.ServerHost,
                     DefaultThreads = int.TryParse(section["DefaultThreads"], out var t) ? t : opts.DefaultThreads,
                     DefaultContextSize = int.TryParse(section["DefaultContextSize"], out var cs) ? cs : opts.DefaultContextSize,
+                    MaxPromptChars = int.TryParse(section["MaxPromptChars"], out var mp) ? mp : opts.MaxPromptChars,
                 };
             }
             return opts;

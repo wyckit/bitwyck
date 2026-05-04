@@ -27,6 +27,20 @@ dotnet test  C:/Software/research/bitwyck/Bitwyck.slnx
 
 Requires `.NET 10 SDK` (verified with 10.0.201).
 
+## One-time: bump llama-cli stack
+
+Once after building BitNet's `llama-cli.exe`, run:
+
+```powershell
+.\scripts\bump-llama-cli-stack.ps1
+```
+
+This rewrites the binary's per-thread stack reserve from 1 MB to 8 MB. Without
+the bump, BitNet 1.58-bit kernels stack-overflow on prompts longer than ~870
+characters; with it the practical ceiling becomes the model's 8192-token
+context (≈30 000 characters). Requires Visual Studio (C++ build tools) for
+`editbin.exe`. Reversible — re-run with `-StackBytes 1048576` to undo.
+
 ## Quick start
 
 ```powershell

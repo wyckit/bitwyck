@@ -19,16 +19,19 @@ public sealed record BitNetOptions
     public Dictionary<ModelTier, BitNetTierConfig> Tiers { get; init; } = DefaultTiers();
 
     public int DefaultThreads { get; init; } = 4;
-    public int DefaultContextSize { get; init; } = 2048;
+    public int DefaultContextSize { get; init; } = 4096;
     public string ServerHost { get; init; } = "127.0.0.1";
 
     /// <summary>
     /// Hard upper bound on prompt character length before <see cref="BitNetCliClient"/>
-    /// refuses to invoke llama-cli. The 1.58-bit Falcon3 / BitNet kernels in the
-    /// current llama.cpp build stack-overflow on prompts above ~1500 chars.
+    /// refuses to invoke llama-cli. With the default 1 MB Windows thread stack the
+    /// 1.58-bit kernels stack-overflow above ~870 chars. After bumping llama-cli's
+    /// stack reserve to 8 MB (via <c>editbin /STACK:8388608</c>) the practical
+    /// ceiling is ~30 000 chars (limited by the model's 8192-token context, not
+    /// by stack pressure). 8000 leaves headroom inside a 4096-token context.
     /// Set to 0 to disable the guard.
     /// </summary>
-    public int MaxPromptChars { get; init; } = 1400;
+    public int MaxPromptChars { get; init; } = 8000;
 
     /// <summary>How long to wait for llama-server.exe to become ready after launch.</summary>
     public TimeSpan ServerStartupTimeout { get; init; } = TimeSpan.FromSeconds(60);
