@@ -116,7 +116,13 @@ public sealed class IntentDispatcher
         ("run-pwsh",       new Regex(@"\b(?:run|execute|invoke)\s+(?:powershell|pwsh|ps)\s+(.+)$", RegexOptions.IgnoreCase), "run_powershell", new[]{1}),
         ("pwsh-prefix",    new Regex(@"^\s*(?:powershell|pwsh)\s+(.+)$", RegexOptions.IgnoreCase), "run_powershell", new[]{1}),
         ("get-cmdlet",     new Regex(@"^\s*((?:Get|Test|Resolve|Select|Where|ForEach|Measure|Sort|Format|ConvertTo|ConvertFrom)-\S+(?:\s+.*)?)$", RegexOptions.IgnoreCase), "run_powershell", new[]{1}),
-        ("dir-info-path",  new Regex(@"\b(?:get|show)\s+(?:the\s+)?(\S+)\s+(?:directory|folder|dir)\s+(?:info|details|contents|listing)", RegexOptions.IgnoreCase), "list_files", new[]{1}),
+
+        // Flexible "what's in <X> directory" phrasings — route to run_powershell
+        // (no file-tool allow-list constraint) and resolve common directory
+        // names (tmp/temp/downloads/...) to actual paths via PostProcessDirArg.
+        ("list-whats-in",   new Regex(@"\b(?:list|show|view|display|enumerate|tell\s+me|give\s+me)\s+(?:me\s+)?(?:what(?:'?s|s|\s+is)?\s+(?:in|at|under|inside)\s+)?(?:the\s+)?(\S+?)(?:\s+(?:directory|folder|dir))?(?:\s+on\s+\S+?)?[\s.?!]*$", RegexOptions.IgnoreCase), "list_dir_resolver", new[]{1}),
+        ("whats-in-the-X",  new Regex(@"\bwhat(?:'?s|s|\s+is)\s+(?:in|inside|at)\s+(?:the\s+)?(\S+?)(?:\s+(?:directory|folder|dir))?(?:\s+on\s+\S+?)?[\s.?!]*$", RegexOptions.IgnoreCase), "list_dir_resolver", new[]{1}),
+        ("dir-info-path",   new Regex(@"\b(?:get|show)\s+(?:the\s+)?(\S+)\s+(?:directory|folder|dir)\s+(?:info|details|contents|listing)", RegexOptions.IgnoreCase), "list_dir_resolver", new[]{1}),
 
         // run_bash (cmd.exe). Lower priority — the powershell patterns above match first.
         ("run-cmd",     new Regex(@"^\s*run\s+(.+)$", RegexOptions.IgnoreCase), "run_bash", new[]{1}),
@@ -145,10 +151,49 @@ public sealed class IntentDispatcher
         {
             var m = rx.Match(trigger);
             if (!m.Success) continue;
-            var args = groups.Select(g => m.Groups[g].Value.Trim().Trim('"', '\'')).ToArray();
+            var args = groups.Select(g => m.Groups[g].Value.Trim().Trim('"', '\'').TrimEnd(':', ',', '.', '?', '!')).ToArray();
+            // Skip patterns that captured an empty/whitespace-only group.
+            if (args.Length == 0 || string.IsNullOrWhiteSpace(args[0])) continue;
+
+            // The "list_dir_resolver" pseudo-tool is a routing marker: rewrite
+            // it to run_powershell with a `Get-ChildItem <resolved>` command,
+            // resolving common directory names (tmp/temp/downloads/...) to
+            // their actual paths along the way.
+            if (toolName == "list_dir_resolver")
+            {
+                var resolved = ResolveDirectoryName(args[0]);
+                return new ToolCall("run_powershell", new[] { $"Get-ChildItem -Force {resolved}" }, m.Value);
+            }
+
             return new ToolCall(toolName, args, m.Value);
         }
         return null;
+    }
+
+    /// <summary>
+    /// Map common directory shorthand to actual paths so users can say
+    /// "tmp directory" / "downloads" / "desktop" without typing the full path.
+    /// </summary>
+    private static string ResolveDirectoryName(string arg)
+    {
+        var raw = arg.Trim().Trim('"', '\'');
+        var key = raw.ToLowerInvariant().TrimEnd('/', '\\').TrimEnd(':');
+        // Drop a leading "the " if present.
+        if (key.StartsWith("the ", StringComparison.OrdinalIgnoreCase)) key = key[4..].Trim();
+
+        return key switch
+        {
+            "tmp" or "temp" or "c:/tmp" or "c:\\tmp" or "c:/temp" or "c:\\temp" => @"C:\Temp",
+            "downloads" or "dl" => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
+            "documents" or "docs" => Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "desktop" => Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+            "home" or "~" or "userprofile" => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "windows" => Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+            "system32" => Environment.GetFolderPath(Environment.SpecialFolder.System),
+            "appdata" => Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "localappdata" => Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            _ => raw,
+        };
     }
 
     // -------------------------------------------------------------------------
