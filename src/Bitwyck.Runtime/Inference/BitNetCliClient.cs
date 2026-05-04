@@ -123,7 +123,37 @@ public sealed class BitNetCliClient : IBitNetInferenceClient
         }
         sb.Append("<|assistant|>\n");
 
-        return (sb.ToString(), cfg.ModelPath);
+        // Sanitize the entire prompt (system+user+assistant frames) to strip
+        // characters that crash BitNet 1.58-bit kernels — em-dash, en-dash,
+        // smart quotes, NBSP, ZWSP, ZWNJ, ZWJ, BOM. Defends against any
+        // upstream callsite (PromptCompiler framing, tool descriptions, file
+        // contents) emitting these accidentally.
+        return (SanitizeForBitNet(sb.ToString()), cfg.ModelPath);
+    }
+
+    /// <summary>
+    /// Replace characters observed to crash the BitNet 1.58-bit lookup-table
+    /// matmul kernel (STATUS_STACK_BUFFER_OVERRUN). Unicode dashes, smart
+    /// quotes, ellipses, non-breaking and zero-width characters all qualify.
+    /// </summary>
+    private static string SanitizeForBitNet(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return s;
+        var sb = new StringBuilder(s.Length);
+        foreach (var c in s)
+        {
+            sb.Append(c switch
+            {
+                '—' or '–' => "-",
+                '‘' or '’' or 'ʼ' => "'",
+                '“' or '”' => "\"",
+                '…' => "...",
+                ' ' => " ",  // non-breaking space
+                '​' or '‌' or '‍' or '﻿' => string.Empty, // ZWSP, ZWNJ, ZWJ, BOM
+                _ => c.ToString(),
+            });
+        }
+        return sb.ToString();
     }
 
     private async Task<(string Stdout, string Stderr)> RunCliAsync(
