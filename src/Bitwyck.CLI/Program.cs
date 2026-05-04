@@ -99,6 +99,8 @@ public static class Program
                     DefaultThreads = int.TryParse(section["DefaultThreads"], out var t) ? t : opts.DefaultThreads,
                     DefaultContextSize = int.TryParse(section["DefaultContextSize"], out var cs) ? cs : opts.DefaultContextSize,
                     MaxPromptChars = int.TryParse(section["MaxPromptChars"], out var mp) ? mp : opts.MaxPromptChars,
+                    DeepTier = Enum.TryParse<ModelTier>(section["DeepTier"], out var dt) ? dt : opts.DeepTier,
+                    DeepTierMaxPromptChars = int.TryParse(section["DeepTierMaxPromptChars"], out var dmp) ? dmp : opts.DeepTierMaxPromptChars,
                     RopeScalingType = section["RopeScalingType"] ?? opts.RopeScalingType,
                     RopeFreqScale = double.TryParse(section["RopeFreqScale"], out var rs) ? rs : opts.RopeFreqScale,
                 };

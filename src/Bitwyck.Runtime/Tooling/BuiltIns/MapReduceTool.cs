@@ -17,18 +17,22 @@ public sealed class MapReduceTool : ITool
 {
     private readonly IBitNetInferenceClient _llm;
     private readonly int _chunkChars;
-    private readonly ModelTier _tier;
+    private readonly ModelTier _shallowTier;
+    private readonly ModelTier _deepTier;
 
-    public MapReduceTool(IBitNetInferenceClient llm, BitNetOptions opts, ModelTier tier = ModelTier.Reflex_1B)
+    public MapReduceTool(IBitNetInferenceClient llm, BitNetOptions opts,
+        ModelTier shallowTier = ModelTier.Reflex_1B,
+        ModelTier? deepTier = null)
     {
         _llm = llm;
-        _tier = tier;
+        _shallowTier = shallowTier;
+        _deepTier = deepTier ?? opts.DeepTier;
         _chunkChars = Math.Max(2000, opts.MaxPromptChars - 1500);
     }
 
     public string Name => "map_reduce";
-    public string Description => "Apply an instruction to each chunk of a long input (text or @path) and concatenate results.";
-    public string ArgumentSchema => "instruction|input|chunkChars?";
+    public string Description => "Apply an instruction to each chunk of a long input (text or @path) and concatenate results. Pass 'deep' as last arg for higher-quality tier.";
+    public string ArgumentSchema => "instruction|input|chunkChars?|mode?";
 
     public async Task<ToolResult> ExecuteAsync(IReadOnlyList<string> arguments, CancellationToken ct = default)
     {
@@ -48,6 +52,10 @@ public sealed class MapReduceTool : ITool
         var chunkSize = arguments.Count >= 3 && int.TryParse(arguments[2], out var cs) && cs > 500
             ? Math.Min(cs, _chunkChars) : _chunkChars;
 
+        // mode: "deep" → run on the deep tier (slower, better); else fast tier.
+        var mode = arguments.Count >= 4 ? arguments[3].Trim().ToLowerInvariant() : "default";
+        var tier = mode == "deep" ? _deepTier : _shallowTier;
+
         var chunks = SummarizeTool.ChunkText(input, chunkSize);
         if (chunks.Count == 0) return ToolResult.Fail(Name, "no content");
 
@@ -59,7 +67,7 @@ public sealed class MapReduceTool : ITool
             try
             {
                 var resp = await _llm.CompleteAsync(new InferenceRequest(
-                    Tier: _tier,
+                    Tier: tier,
                     Messages: new[]
                     {
                         new InferenceMessage(MessageRole.System, "Apply the user's instruction to the input chunk. Output only the result, no preamble."),

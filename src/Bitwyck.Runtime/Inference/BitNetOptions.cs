@@ -34,6 +34,23 @@ public sealed record BitNetOptions
     public int MaxPromptChars { get; init; } = 24000;
 
     /// <summary>
+    /// Tier used for "deep" work — the reduce step of <c>SummarizeTool</c>,
+    /// the optional escalation path in <c>MapReduceTool</c>. Defaults to
+    /// Standard_3B (Falcon3-3B). The 7B/10B BitNet kernels in this build
+    /// have additional bugs that crash on prompts above ~600 chars, so they
+    /// aren't usable for chunked work; 3B's envelope is ~2000 chars.
+    /// </summary>
+    public ModelTier DeepTier { get; init; } = ModelTier.Standard_3B;
+
+    /// <summary>
+    /// Per-call prompt cap when invoking the deep tier. Smaller than
+    /// <see cref="MaxPromptChars"/> because the bigger models have tighter
+    /// stable envelopes. SummarizeTool falls back to the fast tier when a
+    /// would-be deep-tier prompt exceeds this cap.
+    /// </summary>
+    public int DeepTierMaxPromptChars { get; init; } = 1800;
+
+    /// <summary>
     /// RoPE scaling type passed to llama-cli ("none", "linear", "yarn"). Use "linear"
     /// in combination with <see cref="RopeFreqScale"/> &lt; 1 to extend the model
     /// past its trained context window — at the cost of some output quality.
