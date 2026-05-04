@@ -131,13 +131,26 @@ public sealed class ChatCommand
         var ev = SensoryEvent.FromText(text, source: "chat");
         var result = await loop.RunAsync(ev, ct);
 
+        var answer = result.FinalAnswer?.Trim() ?? string.Empty;
+
+        if (result.DegradedMode)
+        {
+            WriteColored(ConsoleColor.Yellow, "⚠ ");
+            Console.WriteLine($"local model is unavailable for this turn — {result.DegradedReason}");
+            Console.WriteLine("  (try a shorter prompt, a registered tool intent, or :forget if engram has bloated.)");
+            return;
+        }
+
         WriteColored(ConsoleColor.White, "agent ▸ ");
-        Console.WriteLine(result.FinalAnswer.Trim());
+        if (answer.Length == 0)
+        {
+            WriteColored(ConsoleColor.DarkYellow, "(empty reply — model produced no output. try rephrasing.)\n");
+            return;
+        }
+        Console.WriteLine(answer);
 
         if (result.ToolCalls.Count > 0)
             WriteColored(ConsoleColor.DarkGray, $"  (tools: {string.Join(", ", result.ToolCalls.Select(c => c.ToolName))})\n");
-        if (result.DegradedMode)
-            WriteColored(ConsoleColor.Yellow, $"  ⚠ degraded: {result.DegradedReason}\n");
     }
 
     private static async Task WipeEngramAsync(IEngramMemoryStore store, CancellationToken ct)

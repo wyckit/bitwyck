@@ -172,6 +172,7 @@ public static class Program
             reg.Register(new QueryEngramTool(sp.GetRequiredService<IEngramMemoryStore>()));
             reg.Register(new StoreEngramTool(sp.GetRequiredService<IEngramMemoryStore>()));
             reg.Register(new SpawnAgentTool(sp.GetRequiredService<ParallelCognitiveDispatcher>()));
+            reg.Register(new FetchUrlTool(sp.GetRequiredService<IHttpClientFactory>()));
             // ScheduleTaskTool is registered after the loop is constructed (circular dep) — handled in Daemon.
             return reg;
         });

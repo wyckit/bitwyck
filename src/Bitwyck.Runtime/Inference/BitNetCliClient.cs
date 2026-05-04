@@ -39,12 +39,28 @@ public sealed class BitNetCliClient : IBitNetInferenceClient
         return Task.FromResult(available);
     }
 
+    /// <summary>
+    /// Hard upper bound on prompt length. BitNet 1.58-bit kernels in this
+    /// llama.cpp build stack-overflow on inputs above ~1500 chars / ~375 tokens.
+    /// Configurable via <see cref="BitNetOptions.MaxPromptChars"/> (default 1400).
+    /// </summary>
+    private int PromptCharLimit => _options.MaxPromptChars > 0 ? _options.MaxPromptChars : 1400;
+
     public async Task<InferenceResponse> CompleteAsync(
         InferenceRequest request, CancellationToken ct = default)
     {
         var (prompt, modelPath) = PrepareInvocation(request);
-        var sw = Stopwatch.StartNew();
 
+        if (prompt.Length > PromptCharLimit)
+        {
+            _logger.LogWarning(
+                "Prompt length {Len} exceeds safe limit {Limit} for {Tier}; skipping inference (would crash llama-cli).",
+                prompt.Length, PromptCharLimit, request.Tier);
+            throw new InvalidOperationException(
+                $"prompt length {prompt.Length} exceeds safe limit {PromptCharLimit} for tier {request.Tier}");
+        }
+
+        var sw = Stopwatch.StartNew();
         var (stdout, _) = await RunCliAsync(modelPath, prompt, request, ct).ConfigureAwait(false);
         sw.Stop();
 
@@ -171,11 +187,25 @@ public sealed class BitNetCliClient : IBitNetInferenceClient
 
         if (process.ExitCode != 0)
         {
-            _logger.LogWarning("llama-cli exited with code {Code}. Stderr: {Err}",
-                process.ExitCode, stderrBuilder.ToString());
+            // llama-cli's stderr is enormous (full model loading dump). Log only
+            // the exit code and the last few lines at warning level; full stderr
+            // is available at debug.
+            var stderr = stderrBuilder.ToString();
+            var tail = TailLines(stderr, 4);
+            _logger.LogWarning("llama-cli exited with code {Code}. Tail: {Tail}", process.ExitCode, tail);
+            _logger.LogDebug("llama-cli full stderr ({Len} chars): {Stderr}", stderr.Length, stderr);
+            throw new InvalidOperationException($"llama-cli exited with code {process.ExitCode}");
         }
 
         return (stdoutBuilder.ToString(), stderrBuilder.ToString());
+    }
+
+    private static string TailLines(string s, int lines)
+    {
+        if (string.IsNullOrEmpty(s)) return string.Empty;
+        var split = s.Split('\n');
+        var start = Math.Max(0, split.Length - lines);
+        return string.Join(" | ", split[start..].Select(l => l.Trim()).Where(l => l.Length > 0));
     }
 
     /// <summary>

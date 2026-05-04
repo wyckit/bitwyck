@@ -22,6 +22,14 @@ public sealed record BitNetOptions
     public int DefaultContextSize { get; init; } = 2048;
     public string ServerHost { get; init; } = "127.0.0.1";
 
+    /// <summary>
+    /// Hard upper bound on prompt character length before <see cref="BitNetCliClient"/>
+    /// refuses to invoke llama-cli. The 1.58-bit Falcon3 / BitNet kernels in the
+    /// current llama.cpp build stack-overflow on prompts above ~1500 chars.
+    /// Set to 0 to disable the guard.
+    /// </summary>
+    public int MaxPromptChars { get; init; } = 1400;
+
     /// <summary>How long to wait for llama-server.exe to become ready after launch.</summary>
     public TimeSpan ServerStartupTimeout { get; init; } = TimeSpan.FromSeconds(60);
 
