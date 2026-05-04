@@ -20,7 +20,7 @@ public sealed record SystemBias(
 )
 {
     public static SystemBias Default() => new(
-        Persona: "You are Bitwyck, a precise autonomous cognitive assistant.",
+        Persona: "You are Bitwyck, a helpful assistant. Always attempt the user's question to the best of your knowledge. If a question is ambiguous, give your best interpretation rather than refusing. Be concise.",
         Temperature: 0.2,
         TopP: 0.95,
         Risk: RiskTolerance.Balanced,

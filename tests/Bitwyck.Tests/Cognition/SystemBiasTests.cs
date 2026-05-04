@@ -8,15 +8,17 @@ public class SystemBiasTests
     private static SensoryEvent DummyEvent =>
         SensoryEvent.FromText("test input");
 
-    // ── Reflex_1B: temperature clamped ≤ 0.15 ────────────────────────────────
+    // ── Reflex_1B: temperature floored at 0.55 (BitNet-2B doesn't emit
+    //    structured tool calls anyway, and a higher temp prevents stock
+    //    refusal / repetition loops). ──────────────────────────────────────────
 
     [Theory]
-    [InlineData(0.0)]
-    [InlineData(0.1)]
-    [InlineData(0.15)]
-    [InlineData(0.5)]
-    [InlineData(1.0)]
-    public void Reflex1B_TemperatureClampedToAtMost015(double baselineTemp)
+    [InlineData(0.0,  0.55)]
+    [InlineData(0.2,  0.55)]
+    [InlineData(0.55, 0.55)]
+    [InlineData(0.8,  0.8)]
+    [InlineData(1.0,  1.0)]
+    public void Reflex1B_TemperatureFlooredAt055(double baselineTemp, double expectedMin)
     {
         var baseline = new SystemBias("persona", baselineTemp, 0.95, RiskTolerance.Balanced);
         var provider = new DefaultSystemBiasProvider(baseline);
@@ -24,8 +26,8 @@ public class SystemBiasTests
 
         var bias = provider.GetBias(DummyEvent, route);
 
-        Assert.True(bias.Temperature <= 0.15,
-            $"Expected temperature ≤ 0.15 for Reflex_1B but got {bias.Temperature}");
+        Assert.True(bias.Temperature >= expectedMin,
+            $"Expected temperature ≥ {expectedMin} for Reflex_1B but got {bias.Temperature}");
     }
 
     // ── DeepReason_10B: temperature ≥ max(baseline, 0.3) ─────────────────────
@@ -48,12 +50,14 @@ public class SystemBiasTests
             $"Expected temperature ≥ {expectedMin} for DeepReason_10B but got {bias.Temperature}");
     }
 
-    // ── Standard_3B and Deliberate_7B: temperature passes through unchanged ──
+    // ── Standard_3B floored at 0.4; Deliberate_7B passes through ─────────────
 
     [Theory]
-    [InlineData(ModelTier.Standard_3B, 0.7)]
-    [InlineData(ModelTier.Deliberate_7B, 0.4)]
-    public void Standard_And_Deliberate_TemperaturePassesThrough(ModelTier tier, double baselineTemp)
+    [InlineData(ModelTier.Standard_3B,    0.7, 0.7)]   // baseline > floor
+    [InlineData(ModelTier.Standard_3B,    0.1, 0.4)]   // baseline < floor
+    [InlineData(ModelTier.Deliberate_7B,  0.4, 0.4)]   // pass through
+    [InlineData(ModelTier.Deliberate_7B,  0.0, 0.0)]   // pass through
+    public void Standard_And_Deliberate_Temperature(ModelTier tier, double baselineTemp, double expected)
     {
         var baseline = new SystemBias("persona", baselineTemp, 0.95, RiskTolerance.Balanced);
         var provider = new DefaultSystemBiasProvider(baseline);
@@ -61,7 +65,7 @@ public class SystemBiasTests
 
         var bias = provider.GetBias(DummyEvent, route);
 
-        Assert.Equal(baselineTemp, bias.Temperature, precision: 10);
+        Assert.Equal(expected, bias.Temperature, precision: 10);
     }
 
     // ── Other fields pass through unchanged ───────────────────────────────────

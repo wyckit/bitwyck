@@ -37,6 +37,10 @@ public sealed class ChatCommand
 
         var turnCount = 0;
         string? lastDispatchInfo = null;
+        // Rolling chat history for cross-turn context. Cap at 6 messages
+        // (3 turns) so the prompt stays inside BitNet-2B's stable envelope.
+        var chatHistory = new System.Collections.Generic.List<InferenceMessage>();
+        const int MaxChatHistoryMessages = 6;
 
         while (!ct.IsCancellationRequested)
         {
@@ -105,7 +109,7 @@ public sealed class ChatCommand
                     {
                         WriteColored(ConsoleColor.Yellow, $"shortcut failed: {tr.Error}\n");
                         WriteColored(ConsoleColor.DarkGray, "→ falling through to LLM...\n");
-                        await RunLlmTurnAsync(loop, line, ct);
+                        await RunLlmTurnAsync(loop, line, chatHistory, ct);
                         lastDispatchInfo = $"shortcut failed -> LLM fallback. Error: {tr.Error}\n";
                     }
                     Console.WriteLine();
@@ -114,7 +118,14 @@ public sealed class ChatCommand
 
                 // No shortcut — LLM turn.
                 lastDispatchInfo = "dispatcher miss — LLM handled the turn.\n";
-                await RunLlmTurnAsync(loop, line, ct);
+                var reply = await RunLlmTurnAsync(loop, line, chatHistory, ct);
+                if (!string.IsNullOrWhiteSpace(reply))
+                {
+                    chatHistory.Add(new InferenceMessage(MessageRole.User, line));
+                    chatHistory.Add(new InferenceMessage(MessageRole.Assistant, reply));
+                    while (chatHistory.Count > MaxChatHistoryMessages)
+                        chatHistory.RemoveAt(0);
+                }
                 Console.WriteLine();
             }
             catch (OperationCanceledException) { return 0; }
@@ -126,10 +137,14 @@ public sealed class ChatCommand
         return 0;
     }
 
-    private static async Task RunLlmTurnAsync(CognitiveLoop loop, string text, CancellationToken ct)
+    private static async Task<string?> RunLlmTurnAsync(
+        CognitiveLoop loop,
+        string text,
+        IReadOnlyList<InferenceMessage> chatHistory,
+        CancellationToken ct)
     {
         var ev = SensoryEvent.FromText(text, source: "chat");
-        var result = await loop.RunAsync(ev, ct);
+        var result = await loop.RunAsync(ev, chatHistory, ct);
 
         var answer = result.FinalAnswer?.Trim() ?? string.Empty;
 
@@ -138,19 +153,20 @@ public sealed class ChatCommand
             WriteColored(ConsoleColor.Yellow, "⚠ ");
             Console.WriteLine($"local model is unavailable for this turn — {result.DegradedReason}");
             Console.WriteLine("  (try a shorter prompt, a registered tool intent, or :forget if engram has bloated.)");
-            return;
+            return null;
         }
 
         WriteColored(ConsoleColor.White, "agent ▸ ");
         if (answer.Length == 0)
         {
             WriteColored(ConsoleColor.DarkYellow, "(empty reply — model produced no output. try rephrasing.)\n");
-            return;
+            return null;
         }
         Console.WriteLine(answer);
 
         if (result.ToolCalls.Count > 0)
             WriteColored(ConsoleColor.DarkGray, $"  (tools: {string.Join(", ", result.ToolCalls.Select(c => c.ToolName))})\n");
+        return answer;
     }
 
     private static async Task WipeEngramAsync(IEngramMemoryStore store, CancellationToken ct)

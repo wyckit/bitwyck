@@ -24,12 +24,14 @@ public sealed class DefaultSystemBiasProvider : ISystemBiasProvider
 
     public SystemBias GetBias(SensoryEvent trigger, RouteDecision route)
     {
-        // Reflex tier runs hotter is dangerous — clamp temperature down
-        // for fast-path responses to keep tool-call XML well-formed.
+        // BitNet-2B-4T (now mapped to Reflex_1B) doesn't emit tool calls, so
+        // we no longer need to clamp temperature low for XML well-formedness.
+        // Higher temp prevents the model from settling into stock refusal /
+        // repetition loops on borderline factual questions.
         var temp = route.SelectedTier switch
         {
-            ModelTier.Reflex_1B => Math.Min(_baseline.Temperature, 0.15),
-            ModelTier.Standard_3B => _baseline.Temperature,
+            ModelTier.Reflex_1B => Math.Max(_baseline.Temperature, 0.55),
+            ModelTier.Standard_3B => Math.Max(_baseline.Temperature, 0.4),
             ModelTier.Deliberate_7B => _baseline.Temperature,
             ModelTier.DeepReason_10B => Math.Max(_baseline.Temperature, 0.3),
             _ => _baseline.Temperature

@@ -56,7 +56,13 @@ public sealed class CognitiveLoop
         _identityStore = identityStore;
     }
 
-    public async Task<CognitiveCycleResult> RunAsync(SensoryEvent trigger, CancellationToken ct = default)
+    public Task<CognitiveCycleResult> RunAsync(SensoryEvent trigger, CancellationToken ct = default)
+        => RunAsync(trigger, Array.Empty<InferenceMessage>(), ct);
+
+    public async Task<CognitiveCycleResult> RunAsync(
+        SensoryEvent trigger,
+        IReadOnlyList<InferenceMessage> chatHistory,
+        CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
         var correlationId = Guid.NewGuid().ToString("N")[..12];
@@ -91,7 +97,7 @@ public sealed class CognitiveLoop
                     Trigger: trigger,
                     Identity: identity,
                     RecalledEngrams: recalled,
-                    ChatHistory: Array.Empty<InferenceMessage>(),
+                    ChatHistory: chatHistory,
                     Bias: systemBias,
                     CorrelationId: correlationId);
 
@@ -173,9 +179,12 @@ public sealed class CognitiveLoop
             DegradedMode: degraded,
             DegradedReason: degraded ? degradedReason : null);
 
-        // Don't pollute engram with degraded/empty turns — they accumulate and
-        // blow up future prompts via recall.
-        if (!result.DegradedMode && !string.IsNullOrWhiteSpace(result.FinalAnswer))
+        // Don't pollute engram with degraded / empty / stock-refusal turns —
+        // they create feedback loops where the next turn recalls the refusal
+        // and the model just repeats it.
+        if (!result.DegradedMode
+            && !string.IsNullOrWhiteSpace(result.FinalAnswer)
+            && !RefusalHeuristic.LooksLikeRefusal(result.FinalAnswer))
             await _commit(result, ct);
 
         return result;
@@ -188,3 +197,30 @@ public sealed record InterceptionOutcome(
     IReadOnlyList<ToolCall> ToolCalls,
     IReadOnlyList<ToolResult> ToolResults
 );
+
+internal static class RefusalHeuristic
+{
+    private static readonly string[] Phrases =
+    {
+        "i'm sorry, but i cannot",
+        "i'm sorry, but i can't",
+        "i cannot provide an answer",
+        "i cannot assist with that",
+        "i can't assist with that",
+        "i am unable to",
+        "i'm not able to",
+        "as an ai language model",
+        "i don't have the ability",
+    };
+
+    public static bool LooksLikeRefusal(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var lower = text.TrimStart().ToLowerInvariant();
+        // Only treat as refusal if it BEGINS with one of these phrases (so
+        // factual answers that quote a refusal in the middle aren't dropped).
+        foreach (var p in Phrases)
+            if (lower.StartsWith(p)) return true;
+        return false;
+    }
+}
