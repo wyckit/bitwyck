@@ -174,6 +174,8 @@ public static class Program
             reg.Register(new WriteFileTool(allowedRoots));
             reg.Register(new ListFilesTool(allowedRoots));
             reg.Register(new RunBashTool(bashAllowList));
+            var psAllowList = config.GetSection("Bitwyck:Tools:PowerShellAllowList").Get<string[]>();
+            reg.Register(new RunPowerShellTool(psAllowList));
             reg.Register(new QueryEngramTool(sp.GetRequiredService<IEngramMemoryStore>()));
             reg.Register(new StoreEngramTool(sp.GetRequiredService<IEngramMemoryStore>()));
             reg.Register(new SpawnAgentTool(sp.GetRequiredService<ParallelCognitiveDispatcher>()));

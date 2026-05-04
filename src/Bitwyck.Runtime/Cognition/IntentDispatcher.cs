@@ -111,7 +111,14 @@ public sealed class IntentDispatcher
         // write_file (low-confidence — keep behind explicit phrasing)
         ("write-file",  new Regex(@"\bwrite\s+(?:to\s+)?(\S+)\s+(?:with|the\s+content)\s+(.+)$", RegexOptions.IgnoreCase), "write_file", new[]{1, 2}),
 
-        // run_bash
+        // run_powershell — recognise common phrasings before run_bash so PS commands
+        // route to PowerShell rather than cmd.exe.
+        ("run-pwsh",       new Regex(@"\b(?:run|execute|invoke)\s+(?:powershell|pwsh|ps)\s+(.+)$", RegexOptions.IgnoreCase), "run_powershell", new[]{1}),
+        ("pwsh-prefix",    new Regex(@"^\s*(?:powershell|pwsh)\s+(.+)$", RegexOptions.IgnoreCase), "run_powershell", new[]{1}),
+        ("get-cmdlet",     new Regex(@"^\s*((?:Get|Test|Resolve|Select|Where|ForEach|Measure|Sort|Format|ConvertTo|ConvertFrom)-\S+(?:\s+.*)?)$", RegexOptions.IgnoreCase), "run_powershell", new[]{1}),
+        ("dir-info-path",  new Regex(@"\b(?:get|show)\s+(?:the\s+)?(\S+)\s+(?:directory|folder|dir)\s+(?:info|details|contents|listing)", RegexOptions.IgnoreCase), "list_files", new[]{1}),
+
+        // run_bash (cmd.exe). Lower priority — the powershell patterns above match first.
         ("run-cmd",     new Regex(@"^\s*run\s+(.+)$", RegexOptions.IgnoreCase), "run_bash", new[]{1}),
         ("execute",     new Regex(@"^\s*execute\s+(.+)$", RegexOptions.IgnoreCase), "run_bash", new[]{1}),
 

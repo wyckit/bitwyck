@@ -33,8 +33,8 @@ public sealed class EngramRecallService
     public async Task<IReadOnlyList<Engram>> RecallAsync(
         SensoryEvent trigger,
         UserIdentityState identity,
-        int k = 8,
-        double minScore = 0.25,
+        int k = 5,
+        double minScore = 0.40,
         CancellationToken ct = default)
     {
         // Construct an enriched query from the trigger payload plus identity context.

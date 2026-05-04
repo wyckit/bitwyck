@@ -183,6 +183,11 @@ public sealed class BitNetCliClient : IBitNetInferenceClient
         psi.ArgumentList.Add("--top-p"); psi.ArgumentList.Add(request.TopP.ToString("F2", ci));
         psi.ArgumentList.Add("-s"); psi.ArgumentList.Add(seed.ToString(ci));
         psi.ArgumentList.Add("--no-warmup");
+        // Repeat penalty defends against the small model's tendency to emit
+        // n-gram loops (`x = x.Split('\t')` repeated 14 times). 1.15 is mild
+        // enough not to hurt code or factual answers.
+        psi.ArgumentList.Add("--repeat-penalty"); psi.ArgumentList.Add("1.15");
+        psi.ArgumentList.Add("--repeat-last-n"); psi.ArgumentList.Add("64");
 
         // Optional RoPE scaling (extends context past n_ctx_train at quality cost).
         if (!string.Equals(_options.RopeScalingType, "none", StringComparison.OrdinalIgnoreCase))
