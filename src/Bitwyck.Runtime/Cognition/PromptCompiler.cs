@@ -21,18 +21,33 @@ public sealed class PromptCompiler
 
     public IReadOnlyList<InferenceMessage> Compile(CognitiveContext context, RouteDecision route)
     {
-        var system = BuildSystemMessage(context, route);
-        var user = BuildUserMessage(context);
+        // Tier-aware compaction. The 7B and 10B BitNet kernels in this build
+        // crash on prompts above ~600 chars (separate bug from 1B's stack
+        // overflow — bumping the binary stack doesn't fix it). When routing
+        // to those tiers, strip the tool manifest and recall context entirely
+        // and emit a one-line persona + the trigger. Quality is fine for one-
+        // shot chat at that size.
+        var smallEnvelope = route.SelectedTier is ModelTier.Deliberate_7B or ModelTier.DeepReason_10B;
+
+        var system = smallEnvelope
+            ? BuildMinimalSystemMessage(context)
+            : BuildSystemMessage(context, route);
+        var user = smallEnvelope
+            ? context.Trigger.Payload
+            : BuildUserMessage(context);
 
         var messages = new List<InferenceMessage>(2 + context.ChatHistory.Count) {
             new(MessageRole.System, system),
         };
-        if (context.ChatHistory.Count > 0)
+        // Skip chat history for small-envelope tiers — it accumulates and crashes them.
+        if (!smallEnvelope && context.ChatHistory.Count > 0)
             messages.AddRange(context.ChatHistory);
         messages.Add(new InferenceMessage(MessageRole.User, user));
 
         return messages;
     }
+
+    private static string BuildMinimalSystemMessage(CognitiveContext ctx) => ctx.Bias.Persona;
 
     private string BuildSystemMessage(CognitiveContext ctx, RouteDecision route)
     {
